@@ -320,9 +320,11 @@ void GNW_text_to_buf(unsigned char* buf, const char* str, int swidth, int fullw,
 
     unsigned char* ptr = buf;
     while (*str != '\0') {
-        char ch = *str++;
+        // The glyph table is indexed by byte value. A sign-extended byte >= 0x80
+        // (Cyrillic in cp866) would pass the bound check as a negative number.
+        unsigned char ch = static_cast<unsigned char>(*str++);
         if (ch < curr_font->num) {
-            FontInfo* glyph = &(curr_font->info[ch & 0xFF]);
+            FontInfo* glyph = &(curr_font->info[ch]);
 
             unsigned char* end;
             if ((color & FONT_MONO) != 0) {
@@ -386,8 +388,9 @@ static int GNW_text_width(const char* str)
     len = 0;
 
     for (i = 0; str[i] != '\0'; i++) {
-        if (str[i] < curr_font->num) {
-            fi = &(curr_font->info[str[i]]);
+        unsigned char ch = static_cast<unsigned char>(str[i]);
+        if (ch < curr_font->num) {
+            fi = &(curr_font->info[ch]);
             len += curr_font->spacing + fi->width;
         }
     }
@@ -398,7 +401,15 @@ static int GNW_text_width(const char* str)
 // 0x4C1C64
 static int GNW_text_char_width(char c)
 {
-    return curr_font->info[c].width;
+    // Out-of-range glyphs are not drawn at all by GNW_text_to_buf, so they must
+    // not contribute any width here either, otherwise measurements made by
+    // word_wrap would not match what actually gets rendered.
+    int index = static_cast<unsigned char>(c);
+    if (index >= curr_font->num) {
+        return 0;
+    }
+
+    return curr_font->info[index].width;
 }
 
 // 0x4C1C78
