@@ -172,6 +172,12 @@ int screenGetHeight()
     return rectGetHeight(&scr_size);
 }
 
+// Renderer output size the current renderer was created for. A fullscreen window is
+// typically resized by the window manager after SDL_CreateWindow returned, and SDL
+// only reports the new size once the event queue is pumped.
+static int gRendererOutputWidth = 0;
+static int gRendererOutputHeight = 0;
+
 static bool createRenderer(int width, int height)
 {
     gSdlRenderer = SDL_CreateRenderer(gSdlWindow, -1, 0);
@@ -196,6 +202,13 @@ static bool createRenderer(int width, int height)
     gSdlTextureSurface = SDL_CreateRGBSurfaceWithFormat(0, width, height, SDL_BITSPERPIXEL(format), format);
     if (gSdlTextureSurface == NULL) {
         return false;
+    }
+
+    SDL_GetRendererOutputSize(gSdlRenderer, &gRendererOutputWidth, &gRendererOutputHeight);
+
+    if (gSdlSurface != NULL) {
+        // The texture surface is freshly allocated, restore the last known frame.
+        SDL_BlitSurface(gSdlSurface, NULL, gSdlTextureSurface, NULL);
     }
 
     return true;
@@ -227,6 +240,19 @@ void handleWindowSizeChanged()
 
 void renderPresent()
 {
+    // A fullscreen window is resized by the window manager after it was created,
+    // and SDL only picks that up when the event queue is pumped. Everything
+    // presented before the input loop starts (the splash screen) would otherwise
+    // be letterboxed against the size of the whole X screen.
+    SDL_PumpEvents();
+
+    int outputWidth;
+    int outputHeight;
+    if (SDL_GetRendererOutputSize(gSdlRenderer, &outputWidth, &outputHeight) == 0
+        && (outputWidth != gRendererOutputWidth || outputHeight != gRendererOutputHeight)) {
+        handleWindowSizeChanged();
+    }
+
     SDL_UpdateTexture(gSdlTexture, NULL, gSdlTextureSurface->pixels, gSdlTextureSurface->pitch);
     SDL_RenderClear(gSdlRenderer);
     SDL_RenderCopy(gSdlRenderer, gSdlTexture, NULL, NULL);
