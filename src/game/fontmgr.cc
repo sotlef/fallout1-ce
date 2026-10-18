@@ -242,10 +242,15 @@ int FMtext_char_width(char c)
         return 0;
     }
 
-    if (c == ' ') {
+    // Glyph table is indexed by byte value. Sign-extending a byte >= 0x80 (Cyrillic
+    // in cp866) would index before glyphs[], so measured widths would not match the
+    // ones used by FMtext_to_buf, which masks the same byte.
+    unsigned char ch = static_cast<unsigned char>(c);
+
+    if (ch == ' ') {
         width = gCurrentFont->wordSpacing;
     } else {
-        width = gCurrentFont->glyphs[c].width;
+        width = gCurrentFont->glyphs[ch].width;
     }
 
     return width;
